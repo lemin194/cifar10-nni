@@ -1,0 +1,13 @@
+searchSpaceFile: search_space.json
+trialCommand: python3 main.py
+trialGpuNumber: 0
+trialConcurrency: 1
+maxTrialNumber: 4
+tuner:
+  name: Random
+  classArgs:
+    seed: 1697 
+trainingService:  # For other platforms, check mnist-pytorch example
+  platform: local
+  # maxTrialNumberPerGpu: 0
+  # useActiveGpu: false
