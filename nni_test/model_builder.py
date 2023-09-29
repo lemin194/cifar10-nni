@@ -39,16 +39,22 @@ def build_model(args):
     model.add_module('conv2', conv2)
     model.add_module('relu2', nn.ReLU())
     model.add_module('dropout', dropout)
+    model.add_module('flatten', nn.Flatten(1))
 
-    conv_out_size = np.prod(model(torch.zeros((1, *input_dim[1:]))))
+    conv_out_size = np.prod(
+        model(torch.zeros((1, *input_dim[1:]))).shape
+    )
+
+    print(conv_out_size)
 
     fc1 = nn.Linear(conv_out_size, args['fc1'])
     fc2 = nn.Linear(args['fc1'], output_size)
 
+    print(fc2(fc1(torch.zeros(1, conv_out_size))))
+
     model.add_module('fc1', fc1)
     model.add_module('relu3', nn.ReLU())
     model.add_module('fc2', fc2)
-    model.add_module('output', nn.Softmax(dim=1))
 
     lr = args.setdefault("lr", 1e-3)
     optimizer = optim.Adam(model.parameters(), lr=lr)

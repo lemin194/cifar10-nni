@@ -1,29 +1,25 @@
-from pathlib import Path
 
-import nni.nas.strategy as strategy
-import torchvision
-from nni.nas.evaluator import FunctionalEvaluator
-from nni.nas.experiment import NasExperiment, NasExperimentConfig
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.datasets import CIFAR10
-import torch.backends.cudnn as cudnn
-import random
+from __future__ import print_function
+import argparse
 import torch
 import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
 
-from torchvision.models import VGG
+import torchvision
+from torchvision.datasets import CIFAR10
+import torchvision.transforms as transforms
 
 import os
 import argparse
 import logging
 
+from utils import *
 
 import nni
 
-
 import model_builder
-from utils import *
 
 
 trainloader = None

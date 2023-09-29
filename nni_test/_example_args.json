@@ -1,0 +1,9 @@
+{
+    "lr": 0.01,
+    "optimizer": "Adam",
+    "conv2": "normal",
+    "fc1": 48,
+    "dropout_rate": 0.1,
+    "epochs" : 5,
+    "batches": 10
+}
