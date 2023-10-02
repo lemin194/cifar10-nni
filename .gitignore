@@ -1,0 +1,16 @@
+torch_env/
+venv/
+env/
+
+mlartifacts/
+mlruns/
+
+
+data/
+.idea/
+
+__pycache__
+
+tf2/
+
+checkpoint/

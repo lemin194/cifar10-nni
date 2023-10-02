@@ -29,6 +29,90 @@ OPS = {
 }
 
 
+
+PRIMITIVES = [
+    'none',
+    'max_pool_3x3',
+    # 'avg_pool_3x3',
+    'skip_connect',
+    'sep_conv_3x3',
+    # 'sep_conv_5x5',
+    'dil_conv_3x3',
+    # 'dil_conv_5x5',
+    # 'nor_conv_3x3',
+    # 'nor_conv_5x5',
+    # 'nor_conv_7x7',
+    'flood_conv_3x3',
+    'dil_flood_conv_3x3',
+    'choke_conv_3x3',
+    'dil_choke_conv_3x3',
+]
+
+SHARPER_PRIMITIVES = [
+    'none',
+    'max_pool_3x3',
+    'avg_pool_3x3',
+    'skip_connect',
+    'sep_conv_3x3',
+    'sep_conv_5x5',
+    'sep_conv_7x7',
+    'dil_conv_3x3',
+    'dil_conv_5x5',
+    # 'nor_conv_3x3',
+    # 'nor_conv_5x5',
+    # 'nor_conv_7x7',
+    'flood_conv_3x3',
+    'flood_conv_5x5',
+    'dil_flood_conv_3x3',
+    # TODO(ahundt) sharpsepconv doesn't correctly support dil_flood_conv_5x5, padding is not sufficient
+    # w shape: torch.Size([]) op type: <class 'operations.SharpSepConv'> i: 12 self._primitives[i]: dil_flood_conv_5x5x size: torch.Size([16, 16, 32, 32]) stride: 1
+    # op_out size: torch.Size([16, 16, 28, 28])
+    # 'dil_flood_conv_5x5',
+    # 'choke_conv_3x3',
+    # 'dil_choke_conv_3x3',
+]
+
+# Primitives for the original darts search space
+DARTS_PRIMITIVES = [
+    'none',
+    'max_pool_3x3',
+    'avg_pool_3x3',
+    'skip_connect',
+    'sep_conv_3x3',
+    'sep_conv_5x5',
+    'dil_conv_3x3',
+    'dil_conv_5x5'
+]
+
+
+class ConvBNReLU(nn.Module):
+
+  def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
+    super(ConvBNReLU, self).__init__()
+    self.op = nn.Sequential(
+      nn.Conv2d(C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False),
+      nn.BatchNorm2d(C_out, affine=affine),
+      nn.ReLU(inplace=False)
+    )
+
+  def forward(self, x):
+    return self.op(x)
+
+class ReLUConvBN(nn.Module):
+
+  def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
+    super(ReLUConvBN, self).__init__()
+    self.op = nn.Sequential(
+      nn.ReLU(inplace=False),
+      nn.Conv2d(C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False),
+      nn.BatchNorm2d(C_out, affine=affine)
+    )
+
+  def forward(self, x):
+    return self.op(x)
+
+
+
 class ResizablePool(nn.Module):
 
   def __init__(self, C_in, C_out, kernel_size=3, stride=1, padding=1, affine=True, pool_type=nn.MaxPool2d):
