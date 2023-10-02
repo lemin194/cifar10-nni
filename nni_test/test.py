@@ -89,6 +89,7 @@ def prepare(args):
 
     criterion = nn.CrossEntropyLoss()
 
+    return trainloader
 
 # Training
 def train(epoch, batches=-1):
@@ -169,11 +170,11 @@ def test(epoch):
 
 
 
-prepare(args)
-acc = 0.0
-best_acc = 0.0
-for epoch in range(start_epoch, start_epoch+args['epochs']):
-    train(epoch, args['batches'])
-    acc, best_acc = test(epoch)
-    nni.report_intermediate_result(acc)
-print(acc)
+# prepare(args)
+# acc = 0.0
+# best_acc = 0.0
+# for epoch in range(start_epoch, start_epoch+args['epochs']):
+#     train(epoch, args['batches'])
+#     acc, best_acc = test(epoch)
+#     nni.report_intermediate_result(acc)
+# print(acc)

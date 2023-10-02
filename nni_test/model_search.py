@@ -15,10 +15,13 @@ from nni.retiarii import model_wrapper
 import nni.retiarii.strategy as strategy
 
 
+from nni.nas.nn.pytorch.mutation_utils import Mutable, generate_new_label, get_fixed_value
+
+
 @model_wrapper
 class MixedOp(nn.Module):
 
-  def __init__(self, C, stride, primitives=None, op_dict=None, weighting_algorithm=None):
+  def __init__(self, C, stride, primitives=None, op_dict=None, weighting_algorithm=None, label=None):
     """ Perform a mixed forward pass incorporating multiple primitive operations like conv, max pool, etc.
 
     # Arguments
@@ -27,6 +30,8 @@ class MixedOp(nn.Module):
       op_dict: The dictionary of possible operation creation functions.
         All primitives must be in the op dict.
     """
+
+    self._label = generate_new_label(label)
     super().__init__()
     self._ops = []
     self._stride = stride
@@ -42,8 +47,11 @@ class MixedOp(nn.Module):
         op = nn.Sequential(op, nn.BatchNorm2d(C, affine=False))
       self._ops.append(op)
     
-    self.op = nn.LayerChoice(self._ops)
+    self.op = nn.LayerChoice(self._ops, label=f'{self.label}')
 
+  @property
+  def label(self):
+      return self._label
   def forward(self, x):
     # result = 0
     # print('-------------------- forward')
@@ -68,7 +76,7 @@ class MixedOp(nn.Module):
 @model_wrapper
 class Cell(nn.Module):
 
-  def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev, primitives=None, op_dict=None, weighting_algorithm=None):
+  def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev, primitives=None, op_dict=None, weighting_algorithm=None, label=None):
     """Create a searchable cell representing multiple architectures.
 
     The Cell class in model.py is the equivalent for a single architecture.
@@ -81,6 +89,7 @@ class Cell(nn.Module):
         All primitives must be in the op dict.
     """
     super().__init__()
+    self._label = generate_new_label(label)
     self.reduction = reduction
 
     if reduction_prev is None:
@@ -98,8 +107,18 @@ class Cell(nn.Module):
     for i in range(self._steps):
       for j in range(2+i):
         stride = 2 if reduction and j < 2 else 1
-        op = MixedOp(C, stride, primitives, op_dict, weighting_algorithm=weighting_algorithm)
+        op = MixedOp(C, stride, primitives, op_dict, weighting_algorithm=weighting_algorithm, label=f'{self.label}/op_{i}_{j}')
         self._ops.append(op)
+
+
+    self.input_switch = nn.ModuleList()
+    for i in range(self._steps):
+      self.input_switch.append(nn.InputChoice(i + 2, reduction='sum', label=f'{self.label}/input_{i}'))
+
+
+  @property
+  def label(self):
+      return self._label
 
   def forward(self, s0, s1):
     s0 = self.preprocess0(s0)
@@ -108,7 +127,7 @@ class Cell(nn.Module):
     states = [s0, s1]
     offset = 0
     for i in range(self._steps):
-      s = sum(self._ops[offset+j](h) for j, h in enumerate(states))
+      s = self.input_switch[i]([self._ops[offset+j](h) for j, h in enumerate(states)])
       offset += len(states)
       states.append(s)
 
@@ -154,7 +173,7 @@ class Network(nn.Module):
         reduction = False
       cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr,
                   reduction, reduction_prev, primitives, op_dict,
-                  weighting_algorithm=weighting_algorithm)
+                  weighting_algorithm=weighting_algorithm, label=f'cell_{i}')
       reduction_prev = reduction
       self.cells += [cell]
       C_prev_prev, C_prev = C_prev, multiplier*C_curr
