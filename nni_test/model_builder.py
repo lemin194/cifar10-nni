@@ -18,6 +18,9 @@ class DepthwiseSeparableConv2d(nn.Module):
         out = self.pointwise(self.depthwise(x))
         return out
 
+
+
+
 def build_model(args):
     input_dim = (1, 3, 32, 32)
     output_size = 10
@@ -58,15 +61,5 @@ def build_model(args):
 
     lr = args.setdefault("lr", 1e-3)
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    if args['optimizer'] == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
-    if args['optimizer'] == 'Adadelta':
-        optimizer = optim.Adadelta(model.parameters(), lr=lr)
-    if args['optimizer'] == 'Adagrad':
-        optimizer = optim.Adagrad(model.parameters(), lr=lr)
-    if args['optimizer'] == 'Adam':
-        optimizer = optim.Adam(model.parameters(), lr=lr)
-    if args['optimizer'] == 'Adamax':
-        optimizer = optim.Adam(model.parameters(), lr=lr)
     return model, optimizer
 
