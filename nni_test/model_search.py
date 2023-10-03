@@ -52,6 +52,10 @@ class MixedOp(nn.Module):
   @property
   def label(self):
       return self._label
+  
+  def get_search_space(self):
+    return self._primitives
+
   def forward(self, x):
     # result = 0
     # print('-------------------- forward')
@@ -107,19 +111,32 @@ class Cell(nn.Module):
     for i in range(self._steps):
       for j in range(2+i):
         stride = 2 if reduction and j < 2 else 1
-        op = MixedOp(C, stride, primitives, op_dict, weighting_algorithm=weighting_algorithm, label=f'{self.label}/op_{i}_{j}')
+        op = MixedOp(C, stride, primitives, op_dict, weighting_algorithm=weighting_algorithm, label=f'{self.label}/op_{i+2}_{j}')
         self._ops.append(op)
 
 
     self.input_switch = nn.ModuleList()
     for i in range(self._steps):
       self.input_switch.append(nn.InputChoice(n_candidates=i+2, n_chosen=min(2, i+1),
-                                              reduction='sum', label=f'{self.label}/input_{i}'))
+                                              reduction='sum', label=f'{self.label}/input_{i+2}'))
 
 
   @property
   def label(self):
       return self._label
+  
+
+  def get_search_space(self):
+    ss = {}
+    states_cnt = 2
+    offset = 0
+    for i in range(self._steps):
+      ss[f'{self.label}/input_{i+2}'] = [self._ops[offset+j].label for j in range(states_cnt)]
+
+      offset += states_cnt
+      states_cnt += 1 
+    return ss
+      
 
   def forward(self, s0, s1):
     s0 = self.preprocess0(s0)
@@ -166,6 +183,10 @@ class Network(nn.Module):
     C_prev_prev, C_prev, C_curr = C_curr, C_curr, C
     self.cells = nn.ModuleList()
     reduction_prev = False
+
+    self._normal_arch = {}
+    self._reduce_arch = {}
+
     for i in range(layers):
       if i in [layers//3, 2*layers//3]:
         C_curr *= 2
@@ -175,6 +196,10 @@ class Network(nn.Module):
       cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr,
                   reduction, reduction_prev, primitives, op_dict,
                   weighting_algorithm=weighting_algorithm, label='reduce' if reduction else 'normal')
+      if reduction:
+        self._reduce_arch = cell.get_search_space()
+      else:
+        self._normal_arch = cell.get_search_space()
       reduction_prev = reduction
       self.cells += [cell]
       C_prev_prev, C_prev = C_prev, multiplier*C_curr
@@ -190,6 +215,15 @@ class Network(nn.Module):
     for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
         x.data.copy_(y.data)
     return model_new
+
+  def get_search_space(self):
+    ss = {
+      'normal': self._normal_arch,
+      'reduce': self._reduce_arch,
+    }
+
+    return ss
+
 
   def forward(self, input):
     s0 = s1 = self.stem(input)
