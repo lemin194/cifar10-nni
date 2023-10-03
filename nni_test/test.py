@@ -1,61 +1,64 @@
-
-from __future__ import print_function
-import argparse
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-import model_builder
-import json
-import torchvision
-from torchvision.datasets import CIFAR10
-import torchvision.transforms as transforms
+import nni.retiarii.nn.pytorch as nn
+from nni.retiarii import model_wrapper
+import nni.retiarii.strategy as strategy
+from model_search import Network
 
-import os
-import argparse
-import logging
-
-from utils import *
 
 import nni
 
+from torchvision import transforms
+from torchvision.datasets import MNIST, CIFAR10
+from torch.utils.data import DataLoader
 
 
-args = json.load(open('_example_args.json', 'r'))
-
-trainloader = None
-testloader = None
-net = None
-criterion = None
-optimizer = None
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-best_acc = 0.0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-
-
-_logger = logging.getLogger("cifar10_pytorch_automl")
-
-trainloader = None
-testloader = None
-net = None
-criterion = None
-optimizer = None
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-best_acc = 0.0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-
-def prepare(args):
-    global trainloader
-    global testloader
-    global net
-    global criterion
-    global optimizer
+def train_epoch(model, device, train_loader, optimizer, epoch):
+    loss_fn = torch.nn.CrossEntropyLoss()
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = loss_fn(output, target)
+        loss.backward()
+        optimizer.step()
+        if batch_idx % 10 == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader), loss.item()))
 
 
+def test_epoch(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
 
-    # Data
-    print('==> Preparing data..')
+    test_loss /= len(test_loader.dataset)
+    accuracy = 100. * correct / len(test_loader.dataset)
+
+    print('\nTest set: Accuracy: {}/{} ({:.0f}%)\n'.format(
+          correct, len(test_loader.dataset), accuracy))
+
+    return accuracy
+
+
+def evaluate_model(model_cls):
+    # "model_cls" is a class, need to instantiate
+    model = model_cls()
+
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model.to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    
+
 
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -72,109 +75,47 @@ def prepare(args):
     ])
 
     trainset = CIFAR10(root='../data/cifar10', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=1)
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=48, shuffle=True, num_workers=1)
 
     testset = CIFAR10(root='../data/cifar10', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=1)
+    test_loader = torch.utils.data.DataLoader(testset, batch_size=48, shuffle=False, num_workers=1)
 
-    # Model
-    print('==> Building model..')
-    net, optimizer = model_builder.build_model(args)
+    for epoch in range(10):
+        # train the model for one epoch
+        train_epoch(model, device, train_loader, optimizer, epoch)
+        # test the model for one epoch
+        accuracy = test_epoch(model, device, test_loader)
+        # call report intermediate result. Result can be float or dict
+        nni.report_intermediate_result(accuracy)
 
-    net = net.to(device)
-
-    # if device == 'cuda':
-    #     net = torch.nn.DataParallel(net)
-    #     cudnn.benchmark = True
-
-    criterion = nn.CrossEntropyLoss()
-
-    return trainloader
-
-# Training
-def train(epoch, batches=-1):
-    global trainloader
-    global testloader
-    global net
-    global criterion
-    global optimizer
-
-    print('\nEpoch: %d' % epoch)
-    net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
-        inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
-        outputs = net(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
-
-        train_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-
-        acc = 100.*correct/total
-
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
-        if batches > 0 and (batch_idx+1) >= batches:
-            return
-
-def test(epoch):
-    global best_acc
-    global trainloader
-    global testloader
-    global net
-    global criterion
-    global optimizer
-
-    net.eval()
-    test_loss = 0
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = net(inputs)
-            loss = criterion(outputs, targets)
-
-            test_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
-
-            acc = 100.*correct/total
-
-            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
-    # Save checkpoint.
-    acc = 100.*correct/total
-    if acc > best_acc:
-        print('Saving..')
-        state = {
-            'net': net.state_dict(),
-            'acc': acc,
-            'epoch': epoch,
-        }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.t7')
-        best_acc = acc
-    return acc, best_acc
+    # report final test result
+    nni.report_final_result(accuracy)
+    
 
 
 
-# prepare(args)
-# acc = 0.0
-# best_acc = 0.0
-# for epoch in range(start_epoch, start_epoch+args['epochs']):
-#     train(epoch, args['batches'])
-#     acc, best_acc = test(epoch)
-#     nni.report_intermediate_result(acc)
-# print(acc)
+
+model_space = Network()
+
+
+from nni.retiarii.evaluator import FunctionalEvaluator
+evaluator = FunctionalEvaluator(evaluate_model)
+
+import nni.retiarii.strategy as strategy
+search_strategy = strategy.Random(dedup=True)  # dedup=False if deduplication is not wanted
+
+
+
+from nni.retiarii.experiment.pytorch import RetiariiExperiment, RetiariiExeConfig
+
+exp = RetiariiExperiment(model_space, evaluator, [], search_strategy)
+exp_config = RetiariiExeConfig('local')
+exp_config.experiment_name = 'cifar10_sharpsepconv'
+
+exp_config.max_trial_number = 100   # spawn 4 trials at most
+exp_config.trial_concurrency = 2  # will run two trials concurrently
+
+exp_config.trial_gpu_number = 1
+exp_config.training_service.use_active_gpu = True
+
+exp.run(exp_config, 8081)

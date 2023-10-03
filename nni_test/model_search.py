@@ -113,7 +113,8 @@ class Cell(nn.Module):
 
     self.input_switch = nn.ModuleList()
     for i in range(self._steps):
-      self.input_switch.append(nn.InputChoice(i + 2, reduction='sum', label=f'{self.label}/input_{i}'))
+      self.input_switch.append(nn.InputChoice(n_candidates=i+2, n_chosen=min(2, i+1),
+                                              reduction='sum', label=f'{self.label}/input_{i}'))
 
 
   @property
@@ -173,7 +174,7 @@ class Network(nn.Module):
         reduction = False
       cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr,
                   reduction, reduction_prev, primitives, op_dict,
-                  weighting_algorithm=weighting_algorithm, label=f'cell_{i}')
+                  weighting_algorithm=weighting_algorithm, label='reduce' if reduction else 'normal')
       reduction_prev = reduction
       self.cells += [cell]
       C_prev_prev, C_prev = C_prev, multiplier*C_curr

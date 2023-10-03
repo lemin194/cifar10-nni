@@ -12,6 +12,8 @@ from torchvision import transforms
 from torchvision.datasets import MNIST, CIFAR10
 from torch.utils.data import DataLoader
 
+from operations import *
+
 
 def train_epoch(model, device, train_loader, optimizer, epoch):
     loss_fn = torch.nn.CrossEntropyLoss()
@@ -95,7 +97,7 @@ def evaluate_model(model_cls):
 
 
 
-model_space = Network()
+model_space = Network(primitives=DARTS_PRIMITIVES)
 
 
 from nni.retiarii.evaluator import FunctionalEvaluator
