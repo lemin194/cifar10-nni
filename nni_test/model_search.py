@@ -117,7 +117,7 @@ class Cell(nn.Module):
 
     self.input_switch = nn.ModuleList()
     for i in range(self._steps):
-      self.input_switch.append(nn.InputChoice(n_candidates=i+2, n_chosen=min(2, i+1),
+      self.input_switch.append(nn.InputChoice(n_candidates=i+2, n_chosen=min(3, i+1),
                                               reduction='sum', label=f'{self.label}/input_{i+2}'))
 
 

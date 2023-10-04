@@ -25,7 +25,6 @@ def plot_single_cell(arch_dict, cell_name):
 		to_ = edge['to']
 		last_node = max((last_node, int(from_), int(to_)))
 	
-	print(last_node)
 
 	for i in range(2, last_node):
 		g.node(str(i), fillcolor='lightblue')
